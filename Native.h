@@ -22421,3 +22421,10 @@ IMPORT_FN wchar_t * __cdecl wcsncpy(wchar_t *dest, const wchar_t *source, size_t
 
 
 #endif /* _NTDLL_ */
+
+NTSYSAPI
+ULONG
+NTAPI
+RtlRandomEx(
+    PULONG Seed
+	);

